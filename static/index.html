@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chatbot - Internship Day 1</title>
+  
+  <!-- Modern Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Marked for Markdown rendering & Highlight.js for code blocks -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-icon">🤖</span>
+          <div class="logo-text">
+            <h2>AI Chatbot</h2>
+            <span class="badge">Day 1 Task</span>
+          </div>
+        </div>
+        <button id="newChatBtn" class="btn btn-secondary w-full" title="Start a fresh conversation">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          New Chat
+        </button>
+      </div>
+
+      <div class="sidebar-body">
+        <div class="section-label">System Persona</div>
+        <div class="select-wrapper">
+          <select id="personaSelect" class="form-select">
+            <option value="helpful">Helpful Assistant</option>
+            <option value="coder">Expert Software Engineer</option>
+            <option value="concise">Concise & Direct</option>
+            <option value="creative">Creative Thinker</option>
+            <option value="custom">Custom System Prompt...</option>
+          </select>
+        </div>
+
+        <div id="customPromptContainer" class="custom-prompt-container hidden">
+          <label for="customPromptInput">Custom Prompt:</label>
+          <textarea id="customPromptInput" rows="3" placeholder="Enter instructions for the AI..."></textarea>
+        </div>
+
+        <div class="section-label mt-4">Features Active</div>
+        <ul class="feature-list">
+          <li><span class="check-icon">✓</span> Multi-turn Context History</li>
+          <li><span class="check-icon">✓</span> Markdown & Code Highlight</li>
+          <li><span class="check-icon">✓</span> Real-time Loading State</li>
+          <li><span class="check-icon">✓</span> Robust Error Handling</li>
+          <li><span class="check-icon">✓</span> Multi-Provider Ready</li>
+        </ul>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="status-indicator">
+          <span id="statusDot" class="status-dot"></span>
+          <span id="statusText">Connecting...</span>
+        </div>
+        <div class="internship-tag">XICTEK Systems • Internship</div>
+      </div>
+    </aside>
+
+    <!-- Main Chat Container -->
+    <main class="chat-container">
+      <header class="chat-header">
+        <div class="header-left">
+          <button id="toggleSidebarBtn" class="mobile-toggle-btn" aria-label="Toggle Sidebar">
+            ☰
+          </button>
+          <div>
+            <h1 class="chat-title">AI Assistant</h1>
+            <p class="chat-subtitle" id="activeModelLabel">Model: Detecting...</p>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <button id="clearChatBtn" class="btn btn-outline" title="Clear message history">
+            Clear Chat
+          </button>
+        </div>
+      </header>
+
+      <!-- Message Feed -->
+      <section id="chatFeed" class="chat-feed">
+        <!-- Welcome Screen (shown initially) -->
+        <div id="welcomeScreen" class="welcome-screen">
+          <div class="welcome-icon">✨</div>
+          <h2>How can I help you today?</h2>
+          <p>Ask a question, brainstorm ideas, or debug code. Conversation history is preserved across turns.</p>
+          
+          <div class="suggestion-chips">
+            <button class="chip" data-prompt="Explain quantum computing in simple terms.">
+              💡 Explain quantum computing
+            </button>
+            <button class="chip" data-prompt="Write a Python function to check if a string is a palindrome.">
+              🐍 Python palindrome function
+            </button>
+            <button class="chip" data-prompt="What are the key benefits of using REST APIs?">
+              🌐 Benefits of REST APIs
+            </button>
+            <button class="chip" data-prompt="Remember my name is Alex. What is your favorite programming language?">
+              🧠 Test conversation memory
+            </button>
+          </div>
+        </div>
+
+        <!-- Chat messages will be dynamically injected here -->
+      </section>
+
+      <!-- Chat Input Area -->
+      <footer class="chat-input-wrapper">
+        <form id="chatForm" class="chat-form">
+          <div class="input-container">
+            <textarea
+              id="messageInput"
+              placeholder="Type your message here... (Press Enter to send, Shift+Enter for newline)"
+              rows="1"
+              required
+            ></textarea>
+            <button type="submit" id="sendBtn" class="send-btn" aria-label="Send message">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+          <div class="input-footer">
+            <span class="char-hint">AI responses can be generated via OpenAI, Groq, or Gemini.</span>
+          </div>
+        </form>
+      </footer>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
