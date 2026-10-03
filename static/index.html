@@ -1,36 +1,36 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Chatbot - Internship Day 1</title>
+  <title>AI Chatbot - Production Assistant (Day 2 & Day 3)</title>
   
-  <!-- Modern Inter Font -->
+  <!-- Inter & JetBrains Mono Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <!-- Marked for Markdown rendering & Highlight.js for code blocks -->
+  <!-- Marked.js for Markdown & Highlight.js for Syntax Highlighting -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" id="hljsTheme">
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app-layout">
-    <!-- Sidebar -->
-    <aside class="sidebar">
+    <!-- Collapsible Sidebar -->
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="logo">
           <span class="logo-icon">🤖</span>
           <div class="logo-text">
             <h2>AI Chatbot</h2>
-            <span class="badge">Day 1 Task</span>
+            <span class="badge">Production v2.0</span>
           </div>
         </div>
-        <button id="newChatBtn" class="btn btn-secondary w-full" title="Start a fresh conversation">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button id="newChatBtn" class="btn btn-primary w-full" title="Start a fresh conversation session">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
@@ -39,30 +39,47 @@
       </div>
 
       <div class="sidebar-body">
-        <div class="section-label">System Persona</div>
-        <div class="select-wrapper">
-          <select id="personaSelect" class="form-select">
-            <option value="helpful">Helpful Assistant</option>
-            <option value="coder">Expert Software Engineer</option>
-            <option value="concise">Concise & Direct</option>
-            <option value="creative">Creative Thinker</option>
-            <option value="custom">Custom System Prompt...</option>
-          </select>
+        <!-- System Persona Selector -->
+        <div class="sidebar-section">
+          <div class="section-label">System Persona</div>
+          <div class="select-wrapper">
+            <select id="personaSelect" class="form-select">
+              <option value="helpful">Helpful Assistant</option>
+              <option value="coder">Senior Software Architect</option>
+              <option value="tutor">AI Technical Mentor</option>
+              <option value="analyst">Executive Research Analyst</option>
+              <option value="creative">Creative Thinker</option>
+              <option value="custom">Custom System Prompt...</option>
+            </select>
+          </div>
+          <div id="customPromptContainer" class="custom-prompt-container hidden">
+            <textarea id="customPromptInput" rows="3" placeholder="Enter custom instructions for the AI persona..."></textarea>
+          </div>
         </div>
 
-        <div id="customPromptContainer" class="custom-prompt-container hidden">
-          <label for="customPromptInput">Custom Prompt:</label>
-          <textarea id="customPromptInput" rows="3" placeholder="Enter instructions for the AI..."></textarea>
+        <!-- Chat Sessions History List (SQLite Persistence) -->
+        <div class="sidebar-section sessions-section">
+          <div class="section-header-flex">
+            <span class="section-label">Chat History</span>
+            <span id="sessionCountBadge" class="count-badge">0</span>
+          </div>
+          <div id="sessionsList" class="sessions-list">
+            <div class="sessions-empty">No saved chats yet</div>
+          </div>
         </div>
 
-        <div class="section-label mt-4">Features Active</div>
-        <ul class="feature-list">
-          <li><span class="check-icon">✓</span> Multi-turn Context History</li>
-          <li><span class="check-icon">✓</span> Markdown & Code Highlight</li>
-          <li><span class="check-icon">✓</span> Real-time Loading State</li>
-          <li><span class="check-icon">✓</span> Robust Error Handling</li>
-          <li><span class="check-icon">✓</span> Multi-Provider Ready</li>
-        </ul>
+        <!-- Production Features Active -->
+        <div class="sidebar-section">
+          <div class="section-label">Active Capabilities</div>
+          <ul class="feature-list">
+            <li><span class="check-icon">✓</span> SQLite Session Persistence</li>
+            <li><span class="check-icon">✓</span> Sliding-Window Context Memory</li>
+            <li><span class="check-icon">✓</span> Real-Time SSE Token Streaming</li>
+            <li><span class="check-icon">✓</span> Voice Input (STT) & Speech (TTS)</li>
+            <li><span class="check-icon">✓</span> Markdown & Syntax Highlighting</li>
+            <li><span class="check-icon">✓</span> IP Rate Limiting & Validation</li>
+          </ul>
+        </div>
       </div>
 
       <div class="sidebar-footer">
@@ -78,73 +95,139 @@
     <main class="chat-container">
       <header class="chat-header">
         <div class="header-left">
-          <button id="toggleSidebarBtn" class="mobile-toggle-btn" aria-label="Toggle Sidebar">
-            ☰
+          <button id="toggleSidebarBtn" class="icon-btn mobile-toggle-btn" aria-label="Toggle Sidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
           </button>
           <div>
-            <h1 class="chat-title">AI Assistant</h1>
-            <p class="chat-subtitle" id="activeModelLabel">Model: Detecting...</p>
+            <h1 class="chat-title" id="activeChatTitle">AI Assistant</h1>
+            <p class="chat-subtitle" id="activeModelLabel">Model: Detecting backend...</p>
           </div>
         </div>
 
         <div class="header-actions">
-          <button id="clearChatBtn" class="btn btn-outline" title="Clear message history">
-            Clear Chat
+          <!-- Dark / Light Theme Toggle -->
+          <button id="themeToggleBtn" class="icon-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Theme">
+            <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+          </button>
+
+          <!-- Export Dropdown -->
+          <div class="dropdown">
+            <button id="exportBtn" class="btn btn-outline" title="Export conversation">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Export
+            </button>
+            <div id="exportMenu" class="dropdown-menu hidden">
+              <button class="dropdown-item" id="exportMdBtn">📄 Markdown (.md)</button>
+              <button class="dropdown-item" id="exportJsonBtn">📦 JSON (.json)</button>
+            </div>
+          </div>
+
+          <!-- Clear Chat -->
+          <button id="clearChatBtn" class="btn btn-outline" title="Clear messages in current chat">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Clear
           </button>
         </div>
       </header>
 
       <!-- Message Feed -->
       <section id="chatFeed" class="chat-feed">
-        <!-- Welcome Screen (shown initially) -->
+        <!-- Welcome Screen (shown when chat is empty) -->
         <div id="welcomeScreen" class="welcome-screen">
+          <div class="welcome-badge">XICTEK SYSTEMS • DAY 2 & DAY 3</div>
           <div class="welcome-icon">✨</div>
-          <h2>How can I help you today?</h2>
-          <p>Ask a question, brainstorm ideas, or debug code. Conversation history is preserved across turns.</p>
+          <h2>How can I assist you today?</h2>
+          <p>
+            An advanced AI Chatbot featuring multi-session persistence, sliding-window context memory, 
+            real-time token streaming, voice interaction, and production-grade error handling.
+          </p>
           
           <div class="suggestion-chips">
-            <button class="chip" data-prompt="Explain quantum computing in simple terms.">
-              💡 Explain quantum computing
+            <button class="chip" data-prompt="Explain how sliding-window context memory prevents token overflow in LLMs.">
+              🧠 Context Memory & Token Limits
             </button>
-            <button class="chip" data-prompt="Write a Python function to check if a string is a palindrome.">
-              🐍 Python palindrome function
+            <button class="chip" data-prompt="Write a Python function with type hints to validate email addresses using regex.">
+              🐍 Python Regex Email Validator
             </button>
-            <button class="chip" data-prompt="What are the key benefits of using REST APIs?">
-              🌐 Benefits of REST APIs
+            <button class="chip" data-prompt="Compare REST APIs vs WebSockets vs Server-Sent Events (SSE) with tradeoffs.">
+              🌐 REST vs WebSockets vs SSE
             </button>
-            <button class="chip" data-prompt="Remember my name is Alex. What is your favorite programming language?">
-              🧠 Test conversation memory
+            <button class="chip" data-prompt="Remember that my name is Alex and I am testing conversation memory.">
+              💡 Test Multi-Turn Memory
             </button>
           </div>
         </div>
-
-        <!-- Chat messages will be dynamically injected here -->
       </section>
 
       <!-- Chat Input Area -->
       <footer class="chat-input-wrapper">
         <form id="chatForm" class="chat-form">
           <div class="input-container">
+            <!-- Voice Input Button (STT) -->
+            <button type="button" id="voiceBtn" class="icon-btn voice-btn" title="Speak to input message (Web Speech API)" aria-label="Voice Input">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+            </button>
+
+            <!-- Textarea -->
             <textarea
               id="messageInput"
-              placeholder="Type your message here... (Press Enter to send, Shift+Enter for newline)"
+              placeholder="Ask anything... (Enter to send, Shift+Enter for new line)"
               rows="1"
+              maxlength="4000"
               required
             ></textarea>
-            <button type="submit" id="sendBtn" class="send-btn" aria-label="Send message">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+
+            <!-- Send Button -->
+            <button type="submit" id="sendBtn" class="send-btn" aria-label="Send message" title="Send message">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
               </svg>
             </button>
           </div>
+
           <div class="input-footer">
-            <span class="char-hint">AI responses can be generated via OpenAI, Groq, or Gemini.</span>
+            <div class="footer-left">
+              <span id="voiceStatus" class="voice-status-text hidden">🎙️ Listening... Speak now</span>
+              <span id="streamIndicator" class="stream-indicator hidden">⚡ Streaming tokens...</span>
+            </div>
+            <div class="footer-right">
+              <span id="charCounter" class="char-counter">0 / 4000</span>
+            </div>
           </div>
         </form>
       </footer>
     </main>
   </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
 
   <script src="script.js"></script>
 </body>

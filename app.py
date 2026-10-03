@@ -1,26 +1,43 @@
 """
-AI Chatbot - Day 1 Practical Task
-XICTEK Systems Internship
+AI Chatbot - Full Stack Application Server
+XICTEK Systems Internship - Day 2 & Day 3 Production Architecture
 
 Features:
-- Multi-turn conversation history
-- Support for Google Gemini (gemini-3.8-flash), OpenAI, and Groq
-- Dynamic reload of .env configuration
-- System prompt customization
-- Robust error handling & fallback
-- Clean Flask REST API serving a modern Web UI
+- Multi-provider AI Integration: Google Gemini (2026 google-genai), Groq, OpenAI
+- Real-time Server-Sent Events (SSE) Token Streaming & Synchronous Fallback
+- Persistent Multi-Session Conversation Storage (SQLite WAL Mode)
+- Sliding-Window Context & Memory Management
+- Strict Input Validation, Sanitization, and IP Rate Limiting
+- Custom Personas & System Prompt Engineering
+- Full Markdown Rendering & Syntax Highlighting
+- Voice Input (STT) & Voice Output (TTS) Support
+- Conversation Export (Markdown & JSON)
 """
 
 import os
+import io
 import json
-import time
 import logging
-from flask import Flask, request, jsonify, send_from_directory
+from datetime import datetime, timezone
+from flask import Flask, request, jsonify, Response, send_from_directory, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+import database as db
+from ai_service import AIService, PERSONAS, get_active_provider_config
+from utils import (
+    validate_chat_request,
+    build_sliding_window_context,
+    rate_limiter,
+    MAX_MESSAGE_LENGTH
+)
+
+# Logging Setup
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger("ChatbotApp")
 
 ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 load_dotenv(dotenv_path=ENV_PATH, override=True)
@@ -29,223 +46,416 @@ app = Flask(__name__, static_folder="static")
 CORS(app)
 
 
-def get_active_provider():
-    """Detect and return which AI provider is configured."""
-    load_dotenv(dotenv_path=ENV_PATH, override=True)
-    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-    groq_key = os.getenv("GROQ_API_KEY", "").strip()
-    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
-    custom_model = os.getenv("AI_MODEL", "").strip()
-
-    # Priority 1: Gemini (verified active key)
-    if gemini_key and not gemini_key.startswith("your_") and not gemini_key.startswith("AIzaSy_your"):
-        return "gemini", gemini_key, custom_model or "gemini-3.5-flash-lite"
-
-    # Priority 2: Groq
-    if groq_key and not groq_key.startswith("gsk_your"):
-        return "groq", groq_key, custom_model or "llama-3.3-70b-versatile"
-
-    # Priority 3: OpenAI
-    if openai_key and not openai_key.startswith("your_"):
-        return "openai", openai_key, custom_model or "gpt-4o-mini"
-
-    return "demo", None, "demo-agent"
-
+# -------------------------------------------------------------
+# Static Web UI Routes
+# -------------------------------------------------------------
 
 @app.route("/")
 def index():
-    """Serve the single-page chat interface."""
+    """Serve the single-page application."""
     return send_from_directory(app.static_folder, "index.html")
 
 
 @app.route("/<path:filename>")
 def serve_static(filename):
-    """Serve static assets (CSS, JS, images)."""
+    """Serve static CSS, JS, fonts, and assets."""
     return send_from_directory(app.static_folder, filename)
 
 
+# -------------------------------------------------------------
+# System Status & Metadata Endpoints
+# -------------------------------------------------------------
+
 @app.route("/api/status", methods=["GET"])
-def status():
-    """Return backend status, detected provider, and active model."""
-    provider_type, key, model = get_active_provider()
+def get_status():
+    """Return backend health, active AI provider, model, and system capabilities."""
+    load_dotenv(dotenv_path=ENV_PATH, override=True)
+    provider_type, key, model = get_active_provider_config()
+
     provider_names = {
         "gemini": "Google Gemini",
-        "groq": "Groq (Llama-3)",
+        "groq": "Groq Cloud (Llama-3)",
         "openai": "OpenAI",
-        "demo": "Demo Mode"
+        "demo": "Demo Assistant (Zero-Config)"
     }
+
     return jsonify({
         "status": "online",
         "provider": provider_names.get(provider_type, "Unknown"),
         "model": model,
         "is_live_key_configured": provider_type != "demo",
-        "message": "AI Chatbot backend is up and running."
+        "features": {
+            "streaming_sse": True,
+            "sqlite_persistence": True,
+            "sliding_window_memory": True,
+            "voice_io": True,
+            "rate_limiting": True,
+            "export_formats": ["markdown", "json"]
+        },
+        "max_message_length": MAX_MESSAGE_LENGTH,
+        "timestamp": datetime.now(timezone.utc).isoformat()
     })
 
 
+@app.route("/api/personas", methods=["GET"])
+def get_personas():
+    """Return available system personas and prompt presets."""
+    return jsonify({
+        "personas": [
+            {
+                "id": key,
+                "name": data["name"],
+                "description": data["description"],
+                "prompt": data["prompt"]
+            }
+            for key, data in PERSONAS.items()
+        ]
+    })
+
+
+# -------------------------------------------------------------
+# Chat Sessions & History Management (SQLite Persistence)
+# -------------------------------------------------------------
+
+@app.route("/api/sessions", methods=["GET"])
+def list_sessions():
+    """List all stored conversation sessions."""
+    sessions = db.get_sessions()
+    return jsonify({"sessions": sessions})
+
+
+@app.route("/api/sessions", methods=["POST"])
+def create_session():
+    """Create a new chat session."""
+    data = request.get_json(silent=True) or {}
+    title = data.get("title", "New Conversation").strip() or "New Conversation"
+    persona = data.get("persona", "helpful").strip() or "helpful"
+    _, _, model = get_active_provider_config()
+
+    session_id = db.create_session(title=title, persona=persona, model=model)
+    return jsonify({
+        "session_id": session_id,
+        "title": title,
+        "persona": persona,
+        "model": model
+    }), 201
+
+
+@app.route("/api/sessions/<session_id>", methods=["GET"])
+def get_session_details(session_id):
+    """Retrieve details and full message history for a specific session."""
+    session = db.get_session(session_id)
+    if not session:
+        return jsonify({"error": "Session not found."}), 404
+
+    messages = db.get_messages(session_id)
+    return jsonify({
+        "session": session,
+        "messages": messages
+    })
+
+
+@app.route("/api/sessions/<session_id>", methods=["PATCH"])
+def update_session_info(session_id):
+    """Update title or persona for an existing session."""
+    session = db.get_session(session_id)
+    if not session:
+        return jsonify({"error": "Session not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    title = data.get("title")
+    persona = data.get("persona")
+
+    db.update_session(session_id, title=title, persona=persona)
+    return jsonify({"success": True, "session_id": session_id})
+
+
+@app.route("/api/sessions/<session_id>", methods=["DELETE"])
+def delete_session(session_id):
+    """Delete a conversation session and all its messages."""
+    deleted = db.delete_session(session_id)
+    if not deleted:
+        return jsonify({"error": "Session not found."}), 404
+    return jsonify({"success": True, "deleted_session_id": session_id})
+
+
+@app.route("/api/sessions/<session_id>/messages", methods=["DELETE"])
+def clear_session_messages(session_id):
+    """Clear all messages inside a session while preserving session metadata."""
+    session = db.get_session(session_id)
+    if not session:
+        return jsonify({"error": "Session not found."}), 404
+
+    db.clear_session_messages(session_id)
+    return jsonify({"success": True, "message": "Chat history cleared."})
+
+
+# -------------------------------------------------------------
+# Main Chat Endpoints (Synchronous & Streaming)
+# -------------------------------------------------------------
+
 @app.route("/api/chat", methods=["POST"])
-def chat():
+def chat_sync():
     """
-    Main chat endpoint.
-    Accepts:
-      - message (string, required): current user input
-      - history (list of {role, content}, optional): conversation history
-      - system_prompt (string, optional): custom instructions for chatbot
-    Returns:
-      - reply (string): the AI assistant's response
-      - provider (string): active provider name
-      - model (string): model name used
+    Standard synchronous chat endpoint.
+    Processes request, applies sliding-window memory, persists messages to SQLite,
+    and returns full AI response JSON.
     """
+    # 1. Rate Limiting Check
+    client_ip = request.remote_addr or "127.0.0.1"
+    allowed, retry_after = rate_limiter.is_allowed(client_ip)
+    if not allowed:
+        return jsonify({
+            "error": "Too Many Requests",
+            "details": f"Rate limit exceeded. Please wait {retry_after} seconds before sending another message."
+        }), 429
+
+    # 2. Input Validation
+    data = request.get_json(silent=True) or {}
+    is_valid, err_msg, cleaned = validate_chat_request(data)
+    if not is_valid:
+        return jsonify({"error": err_msg}), 400
+
+    user_message = cleaned["message"]
+    session_id = cleaned["session_id"]
+    persona = cleaned["persona"]
+    custom_prompt = cleaned["custom_prompt"]
+
+    # 3. Resolve or Create Session
+    session = db.get_session(session_id) if session_id else None
+    if not session:
+        _, _, model_name = get_active_provider_config()
+        # Generate initial title from first 6 words of user message
+        title_words = user_message.split()[:6]
+        title = " ".join(title_words)
+        session_id = db.create_session(title=title, persona=persona, model=model_name)
+
+    # 4. Context Window & Persistence
+    # Fetch recent history from DB or use client-provided turns
+    stored_messages = db.get_messages(session_id, limit=20)
+    history_turns = []
+    for msg in stored_messages:
+        history_turns.append({"role": msg["role"], "content": msg["content"]})
+
+    # If client also passed in-memory history that is not yet in DB, merge safely
+    if cleaned["history"] and not history_turns:
+        history_turns = cleaned["history"]
+
+    # Apply Sliding Window Memory (Context Limiter)
+    context_turns = build_sliding_window_context(history_turns)
+
+    # Save User Message to Database
+    db.add_message(session_id=session_id, role="user", content=user_message)
+
+    # 5. Call AI Service
     try:
-        data = request.get_json(silent=True) or {}
-        user_message = data.get("message", "").strip()
+        response_data = AIService.generate_chat_reply(
+            history=context_turns,
+            message=user_message,
+            persona=persona,
+            custom_prompt=custom_prompt
+        )
 
-        if not user_message:
-            return jsonify({"error": "Message content cannot be empty."}), 400
+        reply = response_data["reply"]
+        provider = response_data["provider"]
+        model = response_data["model"]
 
-        history = data.get("history", [])
-        system_prompt = data.get("system_prompt", "").strip()
-        if not system_prompt:
-            system_prompt = os.getenv(
-                "SYSTEM_PROMPT",
-                "You are a helpful, knowledgeable, and polite AI assistant. Provide clear, accurate, and concise answers using markdown when appropriate."
-            )
+        # Save Assistant Reply to Database
+        db.add_message(
+            session_id=session_id,
+            role="assistant",
+            content=reply,
+            provider=provider,
+            model=model
+        )
 
-        provider_type, key, model = get_active_provider()
-
-        # 1. Handle Google Gemini
-        if provider_type == "gemini":
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=key)
-
-                # Convert history format to Gemini format
-                gemini_history = []
-                for turn in history:
-                    r = turn.get("role")
-                    c = turn.get("content")
-                    if c and isinstance(c, str):
-                        mapped_role = "user" if r == "user" else "model"
-                        gemini_history.append({"role": mapped_role, "parts": [c]})
-
-                gemini_model = genai.GenerativeModel(
-                    model_name=model,
-                    system_instruction=system_prompt
-                )
-
-                reply_text = None
-                for attempt in range(2):
-                    try:
-                        chat_session = gemini_model.start_chat(history=gemini_history)
-                        response = chat_session.send_message(user_message)
-                        reply_text = response.text
-                        break
-                    except Exception as err:
-                        if ("429" in str(err) or "ResourceExhausted" in str(err)) and attempt == 0:
-                            logging.warning("Gemini free quota momentary limit reached. Auto-waiting 2.5s and retrying...")
-                            time.sleep(2.5)
-                            continue
-                        raise err
-
-                return jsonify({
-                    "reply": reply_text,
-                    "provider": "Google Gemini",
-                    "model": model,
-                    "is_demo": False
-                })
-            except Exception as e:
-                logging.error(f"Gemini API error: {str(e)}", exc_info=True)
-                raise e
-
-        # 2. Handle Groq or OpenAI via OpenAI SDK
-        elif provider_type in ("groq", "openai"):
-            from openai import OpenAI
-            if provider_type == "groq":
-                client = OpenAI(api_key=key, base_url="https://api.groq.com/openai/v1")
-                provider_display = "Groq"
-            else:
-                client = OpenAI(api_key=key)
-                provider_display = "OpenAI"
-
-            messages = [{"role": "system", "content": system_prompt}]
-            for msg in history:
-                r = msg.get("role")
-                c = msg.get("content")
-                if r in ("user", "assistant") and isinstance(c, str) and c.strip():
-                    messages.append({"role": r, "content": c})
-            messages.append({"role": "user", "content": user_message})
-
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=1000
-            )
-            reply_text = response.choices[0].message.content
-
-            return jsonify({
-                "reply": reply_text,
-                "provider": provider_display,
-                "model": model,
-                "is_demo": False
-            })
-
-        # 3. Handle Demo Mode (no key configured)
-        else:
-            logging.info("Generating response in Demo Mode (no API key configured).")
-            lower_msg = user_message.lower()
-            if "hello" in lower_msg or "hi" in lower_msg:
-                mock_reply = "Hello! 👋 I am your AI Chatbot running for the **XICTEK Systems Internship Day 1 Task**.\n\nAsk me anything! Conversation history and markdown rendering are fully enabled."
-            elif "who are you" in lower_msg or "what are you" in lower_msg:
-                mock_reply = "I am a basic AI chatbot built for the **XICTEK Systems AI Internship Day 1 Task**! I support conversation history, markdown rendering, system personas, and multi-model backends."
-            elif "name" in lower_msg and any("name is" in item.get("content", "").lower() for item in history):
-                found_name = "Alex"
-                for item in history:
-                    c = item.get("content", "")
-                    if "name is" in c.lower():
-                        found_name = c.split("name is")[-1].strip().rstrip(".")
-                mock_reply = f"Based on our conversation history, your name is **{found_name}**! 🧠 Multi-turn conversation history is functioning properly."
-            else:
-                mock_reply = (
-                    f"✨ **[Demo Mode Response]**\n\n"
-                    f"Received: *\"{user_message}\"*\n\n"
-                    f"Current conversation context has **{len(history)} previous turn(s)**.\n\n"
-                    f"> **Tip**: To switch to live LLM generation, set your API key in `.env`!"
-                )
-
-            return jsonify({
-                "reply": mock_reply,
-                "provider": "Demo Mode",
-                "model": model,
-                "is_demo": True
-            })
+        response_data["session_id"] = session_id
+        return jsonify(response_data)
 
     except Exception as e:
-        err_msg = str(e)
-        logging.error(f"Error processing chat request: {err_msg}", exc_info=True)
-        provider_type, _, _ = get_active_provider()
-        
-        if "429" in err_msg or "ResourceExhausted" in err_msg:
-            if provider_type == "gemini":
-                return jsonify({
-                    "error": "Gemini Rate Limit (429)",
-                    "details": "Gemini free tier has a limit of 5 requests per minute. Please wait 10 seconds and try again!"
-                }), 429
-            else:
-                return jsonify({
-                    "error": "OpenAI API Quota Exceeded (429)",
-                    "details": "Your OpenAI account has no credits remaining. Please check your OpenAI billing or use Google Gemini or Groq."
-                }), 429
-                
+        logger.error(f"Chat generation error: {str(e)}", exc_info=True)
+        err_str = str(e)
+        if "429" in err_str or "ResourceExhausted" in err_str:
+            return jsonify({
+                "error": "Upstream AI Quota Limit",
+                "details": "The AI provider rate limit was reached. Please pause for 10 seconds and retry."
+            }), 429
         return jsonify({
-            "error": "Failed to generate AI response.",
-            "details": err_msg
+            "error": "AI Generation Failed",
+            "details": err_str
         }), 500
 
 
+@app.route("/api/chat/stream", methods=["POST"])
+def chat_stream():
+    """
+    Real-time Server-Sent Events (SSE) token streaming endpoint.
+    Yields tokens word-by-word / chunk-by-chunk for low latency ChatGPT-style UX.
+    """
+    client_ip = request.remote_addr or "127.0.0.1"
+    allowed, retry_after = rate_limiter.is_allowed(client_ip)
+    if not allowed:
+        return jsonify({
+            "error": "Too Many Requests",
+            "details": f"Rate limit exceeded. Please wait {retry_after} seconds before streaming."
+        }), 429
+
+    data = request.get_json(silent=True) or {}
+    is_valid, err_msg, cleaned = validate_chat_request(data)
+    if not is_valid:
+        return jsonify({"error": err_msg}), 400
+
+    user_message = cleaned["message"]
+    session_id = cleaned["session_id"]
+    persona = cleaned["persona"]
+    custom_prompt = cleaned["custom_prompt"]
+
+    session = db.get_session(session_id) if session_id else None
+    if not session:
+        _, _, model_name = get_active_provider_config()
+        title_words = user_message.split()[:6]
+        title = " ".join(title_words)
+        session_id = db.create_session(title=title, persona=persona, model=model_name)
+
+    stored_messages = db.get_messages(session_id, limit=20)
+    history_turns = [{"role": m["role"], "content": m["content"]} for m in stored_messages]
+    if cleaned["history"] and not history_turns:
+        history_turns = cleaned["history"]
+
+    context_turns = build_sliding_window_context(history_turns)
+
+    # Save User Message to Database
+    db.add_message(session_id=session_id, role="user", content=user_message)
+
+    def event_stream():
+        # First send session metadata event
+        yield f"data: {json.dumps({'type': 'session_meta', 'session_id': session_id})}\n\n"
+
+        accumulated = []
+        final_provider = ""
+        final_model = ""
+
+        try:
+            for sse_chunk in AIService.generate_chat_stream(
+                history=context_turns,
+                message=user_message,
+                persona=persona,
+                custom_prompt=custom_prompt
+            ):
+                # Inspect final payload to extract complete reply for persistence
+                if sse_chunk.startswith("data: "):
+                    try:
+                        chunk_obj = json.loads(sse_chunk[6:].strip())
+                        if chunk_obj.get("chunk"):
+                            accumulated.append(chunk_obj["chunk"])
+                        if chunk_obj.get("done"):
+                            final_provider = chunk_obj.get("provider", "")
+                            final_model = chunk_obj.get("model", "")
+                    except Exception:
+                        pass
+                yield sse_chunk
+
+            # Save full assistant reply into DB
+            full_text = "".join(accumulated)
+            if full_text:
+                db.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=full_text,
+                    provider=final_provider,
+                    model=final_model
+                )
+
+        except Exception as err:
+            logger.error(f"Streaming generator exception: {err}", exc_info=True)
+            yield f"data: {json.dumps({'error': str(err), 'done': True})}\n\n"
+
+    return Response(
+        event_stream(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive"
+        }
+    )
+
+
+# -------------------------------------------------------------
+# Conversation Export (Markdown & JSON)
+# -------------------------------------------------------------
+
+@app.route("/api/export/<session_id>", methods=["GET"])
+def export_conversation(session_id):
+    """
+    Export conversation transcript as either Markdown (.md) or JSON (.json).
+    Query parameter: ?format=markdown (default) or ?format=json
+    """
+    session = db.get_session(session_id)
+    if not session:
+        return jsonify({"error": "Session not found."}), 404
+
+    messages = db.get_messages(session_id)
+    export_format = request.args.get("format", "markdown").lower()
+
+    if export_format == "json":
+        export_payload = {
+            "session": session,
+            "messages": messages,
+            "exported_at": datetime.now(timezone.utc).isoformat()
+        }
+        return jsonify(export_payload)
+
+    # Default: Markdown format
+    md_lines = [
+        f"# Conversation: {session['title']}",
+        f"- **Session ID:** `{session['id']}`",
+        f"- **Persona:** {session.get('persona', 'helpful')}",
+        f"- **Created At:** {session['created_at']}",
+        f"- **Exported At:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        "\n---\n"
+    ]
+
+    for m in messages:
+        sender = "👤 **User**" if m["role"] == "user" else "🤖 **AI Assistant**"
+        time_tag = f" *({m.get('created_at', '')})*"
+        md_lines.append(f"### {sender}{time_tag}\n\n{m['content']}\n\n---\n")
+
+    md_content = "\n".join(md_lines)
+    buffer = io.BytesIO(md_content.encode("utf-8"))
+    filename = f"chat_export_{session_id[:8]}.md"
+
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="text/markdown"
+    )
+
+
+# -------------------------------------------------------------
+# Error Handlers
+# -------------------------------------------------------------
+
+@app.errorhandler(404)
+def handle_404(e):
+    return jsonify({"error": "Resource not found"}), 404
+
+
+@app.errorhandler(500)
+def handle_500(e):
+    return jsonify({"error": "Internal Server Error"}), 500
+
+
+# -------------------------------------------------------------
+# Main Application Entry Point
+# -------------------------------------------------------------
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
-    print("=" * 60)
-    print(f"[*] AI Chatbot server running at: http://127.0.0.1:{port}")
-    print("=" * 60)
+    print("=" * 65)
+    print(f"[*] AI Chatbot Production Server: http://127.0.0.1:{port}")
+    print("[*] SQLite Database & WAL Persistence: Active")
+    print("[*] SSE Real-time Streaming & Voice I/O: Ready")
+    print("=" * 65)
     app.run(host="0.0.0.0", port=port, debug=True)

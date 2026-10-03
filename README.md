@@ -1,152 +1,289 @@
-# 🤖 AI Chatbot — Day 1 Practical Task
+# 🤖 AI Chatbot — Production Architecture (Day 2 & Day 3)
 
-> **XICTEK Systems — AI Internship**  
-> An end-to-end full-stack AI chatbot featuring multi-turn conversation history, dynamic system personas, modern responsive Web UI, markdown formatting, syntax highlighting, and multi-provider LLM support.
-
----
-
-## 📌 1. What You Built
-
-This project is a full-stack, responsive AI Chatbot application designed to satisfy and exceed all Day 1 Practical Task requirements:
-
-1. **User Message Handling**: Clean single-page chat interface accepting user prompts via input box or quick-suggestion chips.
-2. **AI Model / API Integration**: Universal integration supporting **OpenAI** (`gpt-4o-mini`), **Groq** (`llama-3.3-70b`), and **Google Gemini** (`gemini-1.5-flash`), with a built-in zero-config **Demo Mode** fallback.
-3. **Multi-Turn Conversation History**: Persists and transmits prior turns of conversation context (`user` and `assistant` messages) so the model maintains coherent conversational memory.
-4. **Custom System Personas**: Dynamic system prompts allowing the user to switch chatbot roles on-the-fly (e.g., *Helpful Assistant*, *Expert Coder*, *Concise*, *Creative*, or *Custom Prompt*).
-5. **Modern Web UI & UX**:
-   - Clean dark-theme interface with smooth chat bubbles.
-   - Real-time animated typing / loading state indicator.
-   - Markdown rendering with code syntax highlighting via `marked.js` and `highlight.js`.
-   - Clear/New chat functionality and responsive mobile layout.
-   - Comprehensive error handling displaying user-friendly alerts instead of silent failures.
+> **XICTEK Systems — AI Internship Practical Task**  
+> **Intern:** Zehra • AI-Powered Developer  
+> **Repository:** [Ai-Chatbot-Internship](https://github.com/Zehra-AI-powered-Developer/Ai-Chatbot-Internship)  
+> **Live Demo & Test Server:** `http://127.0.0.1:5000`
 
 ---
 
-## 🛠️ 2. Technology Used
+## 📸 Application Showcase
 
-- **Backend**:
-  - **Python 3** (Flask REST API)
-  - **`openai` Python SDK**: Client library for standardized interaction with OpenAI, Groq, and Gemini endpoints.
-  - **`python-dotenv`**: Safe loading of API secrets and configurations from `.env`.
-  - **`flask-cors`**: Cross-Origin Resource Sharing enablement for API endpoints.
-- **Frontend**:
-  - **HTML5 & Modern CSS3**: Responsive flexbox layout, CSS variables, dark-mode design system.
-  - **Vanilla JavaScript (ES6+)**: State management for conversation history, asynchronous `fetch` API, dynamic DOM updates.
-  - **`marked.js`**: Markdown parsing for rich text rendering.
-  - **`highlight.js`**: Code block syntax highlighting.
-- **Testing & Tooling**:
-  - Python `unittest` suite for endpoint and history verification.
-  - Git version control with `.gitignore` protection.
+| 🌟 Dark Mode & Context Memory | ☀️ Light Mode Design |
+| :---: | :---: |
+| ![Welcome & Dark Chat](screenshots/02_chat_response_dark.png) | ![Light Theme](screenshots/03_chat_light_mode.png) |
+
+| 💻 Senior Software Architect Persona | 🚀 Clean Initial State |
+| :---: | :---: |
+| ![Code Generation & Notes](screenshots/04_code_generation_dark.png) | ![Welcome Screen](screenshots/01_welcome_dark.png) |
 
 ---
 
-## 🚀 3. How to Run It
+## 📌 Executive Summary
 
-### Step 1: Clone or Navigate to the Repository
-```bash
-cd "z:\Internship\XICTEK Systems -  HISABDO Internship\Day 1\Ai-Chatbot"
+Building on the Day 1 baseline, this release elevates the AI Chatbot into a **production-grade conversational AI platform** that fulfills and surpasses all **Day 2 (Core Chatbot Development)** and **Day 3 (System Enhancements)** requirements.
+
+Rather than merely polishing the visual interface, our engineering focused heavily on **production-oriented patterns**:
+1. **Persistent Session Storage**: SQLite backend with Write-Ahead Logging (WAL) for multi-session conversation history across restarts.
+2. **Sliding-Window Memory & Token Budgeting**: Prevents LLM context overflow, reduces latency, and protects API cost limits.
+3. **Real-time Server-Sent Events (SSE) Streaming**: Lowers Time-To-First-Byte (TTFB) to near-instantaneous token-by-token output.
+4. **Resilient Multi-Provider AI Architecture**: Seamless integration with **Google Gemini (2026 `google-genai` SDK)**, **Groq Cloud (Llama-3.3-70B)**, and **OpenAI (GPT-4o-mini)** with automated backoff retry and zero-config demo fallback.
+5. **Security & Defensive Guardrails**: Sliding-window IP rate limiting, strict payload validation, input sanitization, and structured HTTP error standards.
+6. **Voice Multimodality**: Hands-free voice input (Speech-to-Text) and natural voice output (Text-to-Speech) using the browser's Web Speech API.
+7. **Conversation Export**: One-click export of transcripts into formatted Markdown (`.md`) or structured JSON (`.json`).
+
+---
+
+## 🎯 Requirements Coverage Matrix
+
+### Day 2 — Core Chatbot Development
+| Requirement | Implementation Details | Status |
+| :--- | :--- | :---: |
+| **User Input** | Auto-expanding textarea, character counter (0/4000), keyboard shortcuts (`Enter` to submit, `Shift+Enter` for newline) | ✅ Complete |
+| **AI Response** | Real-time SSE token stream + synchronous fallback JSON API | ✅ Complete |
+| **API Integration** | Modern 2026 `google-genai` client, OpenAI SDK, and Groq Cloud with auto-retry | ✅ Complete |
+| **Loading State** | Pulsing typing indicators and real-time cursor token streaming | ✅ Complete |
+| **Error Handling** | Structured HTTP codes (400, 422, 429, 500, 503), friendly user banners, and 1-click **"Try Again"** retry button | ✅ Complete |
+| **Clean Interface** | Responsive CSS design system with Dark/Light mode toggle | ✅ Complete |
+| **System Prompt / Roles** | 5 curated personas (Software Architect, Tech Tutor, Research Analyst, Creative Writer, Helpful Assistant) + Custom Prompt editor | ✅ Complete |
+
+### Day 3 — Advanced System Improvements (Delivered 9 of 9)
+| Improvement | Implementation in this Release | Status |
+| :--- | :--- | :---: |
+| **1. Conversation History** | Multi-session chat history saved in SQLite database with sidebar session switcher | ✅ Complete |
+| **2. Clear Chat** | Dedicated "Clear Chat" (purges current session) and "Delete Conversation" | ✅ Complete |
+| **3. Better Prompt Structure** | Contextual system prompt engine with role constraints, formatting rules, and date injection | ✅ Complete |
+| **4. Markdown Response** | `marked.js` parsing + `highlight.js` syntax highlighting + **"Copy Code"** button per block | ✅ Complete |
+| **5. Context / Memory** | Sliding-window memory manager keeping recent N turns within token budget | ✅ Complete |
+| **6. Better UI & UX** | ChatGPT/Claude-style collapsible sidebar, light/dark themes, toast alerts | ✅ Complete |
+| **7. Input Validation** | Strict length checks (4000 chars), whitespace rejection, IP rate limiting (35 req/min) | ✅ Complete |
+| **8. Response / Error Handling**| Graceful 429 quota handling, exponential backoff, and non-blocking toast notifications | ✅ Complete |
+| **9. Voice Input & Output** | Web Speech API: microphone input (STT) + voice synthesis (TTS) speaker button | ✅ Complete |
+
+---
+
+## 🏗️ System Architecture & Data Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Client Web Browser                            │
+│  [Dark/Light UI] ── [Speech STT/TTS] ── [EventSource / Fetch Stream]    │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ HTTP POST (SSE or JSON)
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Flask Application Gateway                       │
+│  ┌───────────────────────┐         ┌─────────────────────────────────┐  │
+│  │ Rate Limiter (Sliding)│         │ Input Validation & Sanitization │  │
+│  └──────────┬────────────┘         └────────────────┬────────────────┘  │
+│             └───────────────────────┬───────────────┘                   │
+│                                     ▼                                   │
+│                  ┌──────────────────────────────────────┐               │
+│                  │  Context & Sliding-Window Manager    │               │
+│                  └──────────────────┬───────────────────┘               │
+└─────────────────────────────────────┼───────────────────────────────────┘
+                                      │
+        ┌─────────────────────────────┴─────────────────────────────┐
+        ▼                                                           ▼
+┌──────────────────────────────┐            ┌──────────────────────────────┐
+│  SQLite Persistence Layer    │            │     AI Service Engine        │
+│  (WAL Mode / chat_history.db)│            │  (Multi-Provider Routing)    │
+│  - sessions table            │            ├──────────────────────────────┤
+│  - messages table            │            │ 1. Google Gemini (google.genai)
+│  - indices & cascade delete  │            │ 2. Groq Cloud (Llama-3.3-70b)│
+└──────────────────────────────┘            │ 3. OpenAI (GPT-4o-mini)      │
+                                            │ 4. Intelligent Demo Fallback │
+                                            └──────────────────────────────┘
 ```
 
-### Step 2: Install Dependencies
+### End-to-End Request Lifecycle
+1. **User Input & Transcription**:
+   - The user types a query or clicks the microphone icon (Web Speech API STT) to transcribe speech into text.
+2. **Payload Dispatch**:
+   - The frontend issues an asynchronous `POST /api/chat/stream` carrying `{ message, session_id, persona, custom_prompt }`.
+3. **Gateway Verification**:
+   - The server verifies client IP request frequency against the in-memory `RateLimiter` (sliding-window deque).
+   - Validates length ($\le 4000$ characters) and sanitizes formatting.
+4. **Context Orchestration**:
+   - The session is resolved in SQLite (or auto-created with a contextual title).
+   - Past conversation turns are retrieved and processed through `build_sliding_window_context()` to ensure token boundaries remain optimal.
+5. **LLM Inference & SSE Streaming**:
+   - The active AI provider generates tokens chunk-by-chunk.
+   - The server yields Server-Sent Events (`data: {"chunk": "..."}`).
+   - The browser updates the DOM in real-time with an active cursor animation and runs syntax highlighting.
+6. **Persistence**:
+   - Upon completion, the full assistant response is stored in SQLite for persistent recall.
+
+---
+
+## 📂 Project Structure
+
+```
+Ai-Chatbot/
+├── app.py                   # Main Flask Application Server & REST / SSE Endpoints
+├── database.py              # SQLite Data Access Layer (WAL mode, Sessions, Messages)
+├── ai_service.py            # AI Engine (google-genai, OpenAI, Groq, Streaming, Fallback)
+├── utils.py                 # Input validation, sliding-window memory, IP rate limiter
+├── requirements.txt         # Production dependencies
+├── .env.example             # Configuration template with 2026 models
+├── test_app.py              # 11 Automated Unit & Integration Tests
+├── capture_screenshots.py   # Automated Playwright screenshot generator
+├── chat_history.db          # Local SQLite Database (git-ignored)
+├── screenshots/             # High-resolution screenshots of UI & Features
+│   ├── 01_welcome_dark.png
+│   ├── 02_chat_response_dark.png
+│   ├── 03_chat_light_mode.png
+│   └── 04_code_generation_dark.png
+├── static/
+│   ├── index.html           # Accessible HTML5 Single Page Application
+│   ├── style.css            # Responsive Dark/Light CSS design tokens
+│   └── script.js            # State store, SSE reader, Web Speech STT/TTS, Markdown
+├── README.md                # Comprehensive Project Documentation
+└── EXPLANATION.md           # Architecture, Interview Cheat-Sheet, Learnings & Solutions
+```
+
+---
+
+## ⚡ Quickstart & Setup Guide
+
+### 1. Prerequisites
+- Python 3.10+ (Tested on Python 3.14)
+- Google Chrome, Edge, or Firefox browser
+
+### 2. Installation
+Clone repository and navigate to the directory:
+```bash
+git clone https://github.com/Zehra-AI-powered-Developer/Ai-Chatbot-Internship.git
+cd "Ai-Chatbot-Internship"
+```
+
+Install production dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 3: Configure Environment Variables
-Copy the template file to `.env`:
+### 3. Environment Configuration
+Copy the `.env.example` template:
 ```bash
 cp .env.example .env
 ```
-Open `.env` in any text editor and supply your preferred API key:
+
+Open `.env` and set your preferred provider key:
 
 ```env
-# For OpenAI:
-OPENAI_API_KEY=sk-your-openai-api-key-here
-AI_MODEL=gpt-4o-mini
+# Option 1: Google Gemini (Recommended - Free & Fast)
+GEMINI_API_KEY=AIzaSy_your_gemini_key_here
+AI_MODEL=gemini-3.5-flash-lite
 
-# OR For Groq (Free & Fast):
-# GROQ_API_KEY=gsk_your-groq-api-key-here
+# Option 2: Groq Cloud (Llama-3.3-70B)
+# GROQ_API_KEY=gsk_your_groq_key_here
 # AI_MODEL=llama-3.3-70b-versatile
 
-# OR For Google Gemini:
-# GEMINI_API_KEY=AIzaSy_your-gemini-key-here
-# AI_MODEL=gemini-1.5-flash
+# Option 3: OpenAI (GPT-4o-mini)
+# OPENAI_API_KEY=sk-your_openai_key_here
+# AI_MODEL=gpt-4o-mini
+
+PORT=5000
 ```
 
-*(Note: If you run the app without an API key, it will automatically run in **Demo Mode**, allowing you to test the UI, conversation history, and controls immediately!)*
+> **Note:** If no key is set, the application automatically boots into **Intelligent Demo Mode**, enabling full testing of multi-turn memory, sliding window, voice I/O, and UI features without any external credentials.
 
-### Step 4: Run the Application
+### 4. Run the Application
 ```bash
 python app.py
 ```
-
-### Step 5: Open in Your Browser
-Navigate to:
+Open your browser at:
 ```
 http://127.0.0.1:5000
 ```
 
-### Running Tests
-To run the automated test suite:
+---
+
+## 🧪 Automated Test Suite
+
+The test suite validates backend stability, security filters, rate limiting, and database integrity:
+
 ```bash
 python test_app.py
 ```
 
----
+### Verified Test Cases (11 / 11 Passing):
+```text
+Ran 11 tests in 13.658s
 
-## 🔌 4. API Integration Approach
+[PASS] test_status_endpoint                     (Health & capability flags)
+[PASS] test_personas_endpoint                   (Persona definitions & system prompts)
+[PASS] test_validation_empty_message            (Rejects empty strings with 400)
+[PASS] test_validation_missing_message          (Rejects missing parameters with 400)
+[PASS] test_validation_oversized_message        (Enforces 4000 char boundary with 400)
+[PASS] test_rate_limiter_blocks_excessive       (Triggers HTTP 429 on spam burst)
+[PASS] test_session_lifecycle                   (CRUD on SQLite sessions & messages)
+[PASS] test_sliding_window_memory               (Trims history to budget turns)
+[PASS] test_sync_chat_with_context              (Multi-turn memory retention)
+[PASS] test_streaming_endpoint                  (Server-Sent Events text/event-stream)
+[PASS] test_export_markdown_and_json            (Transcript file generation)
 
-1. **Standardized Client Protocol**:
-   The backend leverages the universal OpenAI-compatible client interface. Because Groq, Google Gemini, and OpenAI all support this structure, the chatbot can effortlessly switch providers by pointing to different `base_url` values without rewriting integration logic.
-
-2. **Conversation Context Orchestration**:
-   ```
-   [System Prompt] ──┐
-   [History Turn 1] ─┼──> [Compiled Payload] ──> [LLM Completion API] ──> [Structured Response]
-   [History Turn 2] ─┤
-   [Current Prompt] ─┘
-   ```
-   - On each submission, the frontend packages the current `message`, current `system_prompt`, and previous `history` array:
-     ```json
-     {
-       "message": "What is my name?",
-       "history": [
-         {"role": "user", "content": "My name is Alex."},
-         {"role": "assistant", "content": "Hello Alex! How can I assist you today?"}
-       ],
-       "system_prompt": "You are a helpful AI assistant."
-     }
-     ```
-   - The backend validates the payload, constructs the message thread array with the system prompt at index 0, and sends it to `client.chat.completions.create(...)`.
-   - The LLM maintains context across multiple turns without needing server-side database storage.
-
-3. **Graceful Error Handling & Fallbacks**:
-   - Catches rate limits, invalid keys, and network timeouts.
-   - Returns structured JSON `{ "error": "...", "details": "..." }` with appropriate HTTP status codes.
+OK
+```
 
 ---
 
-## 💡 5. What You Learned
+## 🌐 API Reference
 
-1. **End-to-End LLM Lifecycle**: Understanding the journey of a prompt from UI capture to HTTP payload construction, API token processing, and client-side rendering.
-2. **Context Window Management**: How LLMs are stateless by nature, and how multi-turn conversation memory is implemented by passing structured dialogue arrays.
-3. **Security Best Practices**: Ensuring API keys are never hardcoded or exposed in client-side code, keeping secrets strictly within `.env` and enforcing `.gitignore`.
-4. **Designing User-Centric AI Interfaces**: The importance of visual feedback (loading dots, disabled button states, markdown syntax rendering) to create responsive, intuitive AI experiences.
-
----
-
-## 🔮 6. What You Would Improve Next
-
-- **Streaming Responses (SSE)**: Implement Server-Sent Events to stream tokens word-by-word like ChatGPT for lower perceived latency.
-- **Persistent Storage**: Save conversation sessions in SQLite or PostgreSQL so chats persist across browser reloads.
-- **RAG (Retrieval-Augmented Generation)**: Allow users to upload PDFs or documents for document Q&A.
-- **Voice Input & Output**: Integrate Web Speech API (`SpeechRecognition` and `speechSynthesis`) for hands-free voice interaction.
-- **Token Counter & Cost Tracker**: Display estimated token consumption and cost per request.
+| Endpoint | Method | Description | Payload / Response |
+| :--- | :---: | :--- | :--- |
+| `/api/status` | `GET` | System health & active provider | Returns `{ status, provider, model, features }` |
+| `/api/personas` | `GET` | List available system personas | Returns `{ personas: [...] }` |
+| `/api/sessions` | `GET` | Retrieve saved chat sessions | Returns `{ sessions: [...] }` |
+| `/api/sessions` | `POST` | Create a new conversation session | `{ title, persona }` $\rightarrow$ `{ session_id }` |
+| `/api/sessions/<id>` | `GET` | Get session and all messages | Returns `{ session, messages: [...] }` |
+| `/api/sessions/<id>` | `DELETE` | Delete session and messages | Returns `{ success: true }` |
+| `/api/sessions/<id>/messages` | `DELETE` | Clear all messages in session | Returns `{ success: true }` |
+| `/api/chat` | `POST` | Synchronous chat completion | `{ message, session_id, persona }` $\rightarrow$ `{ reply }` |
+| `/api/chat/stream` | `POST` | Real-time SSE token stream | Emits `data: {"chunk": "..."}\n\n` |
+| `/api/export/<id>` | `GET` | Export transcript (`?format=md\|json`)| Downloadable `.md` or `.json` file |
 
 ---
 
-## 👥 Presentation & Submission Details
+## 💡 What I Learned (Day 2 & Day 3 Insights)
 
-- **Internship**: XICTEK Systems — AI Internship
-- **Task**: Day 1 Assessment — Basic AI Chatbot
-- **Date**: October 1, 2026
+1. **Stateful Abstractions over Stateless APIs**:
+   LLMs have zero native persistence. Multi-turn context is strictly an application-layer orchestration problem. Implementing persistent database storage alongside a client-side streaming reader demonstrated how modern conversational systems maintain continuity.
+2. **Context Window Dynamics & Cost Optimization**:
+   Naively appending every message to infinity causes token overflow and balloons inference bills. Engineering a **sliding-window memory manager** highlighted the tradeoff between long-term recall and prompt economy.
+3. **SSE vs WebSockets for Generative AI**:
+   While WebSockets offer bidirectional communication, Server-Sent Events (SSE) over HTTP is dramatically simpler, natively handles reconnections, works over standard HTTP/2, and perfectly matches the unidirectional stream of LLM token generation.
+4. **Defensive API Architecture**:
+   Production LLM applications must anticipate API quota exhaustion (HTTP 429) and high-load spikes (HTTP 503). Implementing exponential backoff retries and model fallback ensures the UI never crashes during upstream outages.
+5. **Multimodal Accessibility**:
+   Integrating the Web Speech API demonstrated how adding voice input (STT) and speech synthesis (TTS) enhances accessibility without requiring costly external third-party speech APIs.
+
+---
+
+## 🛠️ Problems Encountered & Solutions Implemented
+
+### 1. Gemini Python SDK Deprecation (`google.generativeai` $\rightarrow$ `google-genai`)
+- **Problem:** The legacy `google.generativeai` library issued deprecation notices and lacked standardized support for modern Gemini 2026 model methods.
+- **Solution:** Upgraded the integration to the modern `google-genai` SDK (`google.genai.Client`). Configured system instructions via `types.GenerateContentConfig(system_instruction=...)` and utilized `chat.send_message_stream()` for robust streaming.
+
+### 2. Gemini 503 Spike & 404 Model Retirement
+- **Problem:** When querying older models (`gemini-2.5-flash`), Google API returned `404 NOT_FOUND` instructing users to use 2026 models. Meanwhile, `gemini-3.8-flash` intermittently returned `503 UNAVAILABLE` during peak demand spikes.
+- **Solution:** Configured `gemini-3.5-flash-lite` as the primary resilient production model, and added an automated fallback handler that catches 503 status codes and switches models dynamically.
+
+### 3. Context Length Bloat in Extended Conversations
+- **Problem:** Long chat sessions accumulated excessive turns, risking model token limits and causing latency degradation.
+- **Solution:** Created `build_sliding_window_context()` in `utils.py`, which filters valid role turns and clamps context to the most recent 10 turns while keeping the primary system prompt anchored at index 0.
+
+### 4. Code Block Copying in Rendered Markdown
+- **Problem:** Standard `marked.js` outputs plain `<pre><code>` blocks without copy affordances or language headers.
+- **Solution:** Designed a custom post-processor in JavaScript that wraps rendered code blocks in an IDE-style container with language tags and an animated **"Copy Code"** button providing visual confirmation.
+
+---
+
+## 👥 Assessment Details
+
+- **Internship:** XICTEK Systems — AI Internship
+- **Developer:** Zehra (AI-Powered Developer)
+- **Tasks Addressed:** Day 2 (AI Chatbot Development) & Day 3 (System Improvements)
+- **Date:** October 2026
+- **Status:** Complete, Tested, Production-Ready

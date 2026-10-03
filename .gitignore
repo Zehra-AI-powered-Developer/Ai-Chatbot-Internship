@@ -3,6 +3,13 @@
 .env.local
 *.env
 
+# SQLite Database & Storage
+*.db
+*.sqlite
+*.sqlite3
+*-wal
+*-shm
+
 # Python Cache & Bytecode
 __pycache__/
 *.py[cod]
