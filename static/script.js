@@ -1,15 +1,6 @@
 /**
- * AI Chatbot - Production Frontend Client
- * XICTEK Systems Internship - Day 2 & Day 3
- * 
- * Features:
- * - SQLite-backed persistent chat sessions
- * - Server-Sent Events (SSE) real-time token streaming
- * - Markdown rendering & Syntax Highlighting with Copy Code buttons
- * - Web Speech API Voice Input (STT) & Speech Synthesis (TTS)
- * - Dark & Light mode theme switching
- * - Export conversation (Markdown & JSON)
- * - Resilient error handling & retry mechanism
+ * ChatAI - Clean, High-Performance Frontend Client
+ * Powered by Groq, Gemini, and OpenAI
  */
 
 // Application State
@@ -19,16 +10,6 @@ let isRecording = false;
 let currentSpeechUtterance = null;
 let activeSpeakerBtn = null;
 
-// System Persona Presets
-const PERSONA_PROMPTS = {
-  helpful: "You are a helpful, knowledgeable, and polite AI assistant. Provide clear, accurate, and concise answers using markdown when appropriate.",
-  coder: "You are a Principal Software Engineer and System Architect. Provide concise, clean, and bug-free code examples with architecture tradeoffs.",
-  tutor: "You are an inspiring technical mentor and educator. Break down difficult concepts into intuitive step-by-step explanations.",
-  analyst: "You are an Executive Strategic Analyst. Provide crisp, structured bullet points, actionable insights, and data-driven analysis.",
-  creative: "You are an inventive and imaginative creative writer. Provide engaging, vivid, and thought-provoking responses.",
-  custom: ""
-};
-
 // DOM References
 const sidebar = document.getElementById("sidebar");
 const toggleSidebarBtn = document.getElementById("toggleSidebarBtn");
@@ -37,6 +18,7 @@ const sessionCountBadge = document.getElementById("sessionCountBadge");
 const newChatBtn = document.getElementById("newChatBtn");
 const clearChatBtn = document.getElementById("clearChatBtn");
 const personaSelect = document.getElementById("personaSelect");
+const providerSelect = document.getElementById("providerSelect");
 const customPromptContainer = document.getElementById("customPromptContainer");
 const customPromptInput = document.getElementById("customPromptInput");
 const statusDot = document.getElementById("statusDot");
@@ -50,8 +32,6 @@ const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 const voiceBtn = document.getElementById("voiceBtn");
 const voiceStatus = document.getElementById("voiceStatus");
-const streamIndicator = document.getElementById("streamIndicator");
-const charCounter = document.getElementById("charCounter");
 const themeToggleBtn = document.getElementById("themeToggleBtn");
 const exportBtn = document.getElementById("exportBtn");
 const exportMenu = document.getElementById("exportMenu");
@@ -60,7 +40,7 @@ const exportJsonBtn = document.getElementById("exportJsonBtn");
 const toastContainer = document.getElementById("toastContainer");
 
 // -------------------------------------------------------------
-// Markdown & Syntax Highlighting Setup
+// Markdown & Highlight.js Configuration
 // -------------------------------------------------------------
 if (typeof marked !== "undefined") {
   marked.setOptions({
@@ -78,10 +58,10 @@ if (typeof marked !== "undefined") {
 }
 
 // -------------------------------------------------------------
-// Theme Management (Dark & Light)
+// Appearance (Dark / Light Theme)
 // -------------------------------------------------------------
 function initTheme() {
-  const savedTheme = localStorage.getItem("chatbot_theme") || "dark";
+  const savedTheme = localStorage.getItem("chatai_theme") || "dark";
   document.documentElement.setAttribute("data-theme", savedTheme);
   updateThemeIcon(savedTheme);
 }
@@ -90,10 +70,9 @@ function toggleTheme() {
   const current = document.documentElement.getAttribute("data-theme") || "dark";
   const newTheme = current === "dark" ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", newTheme);
-  localStorage.setItem("chatbot_theme", newTheme);
+  localStorage.setItem("chatai_theme", newTheme);
   updateThemeIcon(newTheme);
 
-  // Switch highlight.js CSS
   const hljsLink = document.getElementById("hljsTheme");
   if (hljsLink) {
     hljsLink.href = newTheme === "dark"
@@ -129,15 +108,15 @@ if (themeToggleBtn) {
 // -------------------------------------------------------------
 // Toast Notifications
 // -------------------------------------------------------------
-function showToast(message, duration = 2800) {
+function showToast(message, duration = 2400) {
   const toast = document.createElement("div");
   toast.className = "toast";
   toast.textContent = message;
   toastContainer.appendChild(toast);
   setTimeout(() => {
     toast.style.opacity = "0";
-    toast.style.transition = "opacity 0.3s";
-    setTimeout(() => toast.remove(), 300);
+    toast.style.transition = "opacity 0.25s";
+    setTimeout(() => toast.remove(), 260);
   }, duration);
 }
 
@@ -151,22 +130,17 @@ async function checkBackendStatus() {
     const data = await res.json();
 
     statusDot.classList.add("online");
-    statusText.textContent = `${data.provider}`;
-    activeModelLabel.textContent = `Provider: ${data.provider} • Model: ${data.model}`;
-
-    if (!data.is_live_key_configured) {
-      statusText.textContent = "Demo Mode (Add key in .env)";
-    }
+    statusText.textContent = "Online";
+    statusText.title = `${data.provider} (${data.model})`;
   } catch (err) {
     statusDot.classList.remove("online");
     statusDot.style.backgroundColor = "var(--error)";
-    statusText.textContent = "Backend Offline";
-    activeModelLabel.textContent = "Failed to connect to backend";
+    statusText.textContent = "Offline";
   }
 }
 
 // -------------------------------------------------------------
-// Chat Sessions Management (SQLite Persistence)
+// Chat Sessions Management (SQLite)
 // -------------------------------------------------------------
 async function loadSessions() {
   try {
@@ -179,7 +153,7 @@ async function loadSessions() {
     sessionsList.innerHTML = "";
 
     if (sessions.length === 0) {
-      sessionsList.innerHTML = '<div class="sessions-empty">No saved chats yet</div>';
+      sessionsList.innerHTML = '<div class="sessions-empty">No conversations yet</div>';
       return;
     }
 
@@ -190,13 +164,18 @@ async function loadSessions() {
 
       const titleWrap = document.createElement("div");
       titleWrap.className = "session-title-wrap";
-      titleWrap.innerHTML = `<span>💬</span> <span class="session-text">${escapeHtml(s.title || "Conversation")}</span>`;
+      titleWrap.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>${escapeHtml(s.title || "New chat")}</span>
+      `;
 
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "delete-session-btn";
-      deleteBtn.title = "Delete conversation";
+      deleteBtn.title = "Delete";
       deleteBtn.innerHTML = `
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="3 6 5 6 21 6"></polyline>
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
         </svg>
@@ -210,10 +189,7 @@ async function loadSessions() {
       item.appendChild(titleWrap);
       item.appendChild(deleteBtn);
 
-      item.addEventListener("click", () => {
-        switchSession(s.id);
-      });
-
+      item.addEventListener("click", () => switchSession(s.id));
       sessionsList.appendChild(item);
     });
   } catch (e) {
@@ -226,7 +202,6 @@ async function switchSession(sessionId) {
   currentSessionId = sessionId;
   stopSpeech();
 
-  // Update active state in sidebar
   document.querySelectorAll(".session-item").forEach(el => {
     el.classList.toggle("active", el.dataset.id === sessionId);
   });
@@ -238,19 +213,18 @@ async function switchSession(sessionId) {
     const session = data.session;
     const messages = data.messages || [];
 
-    activeChatTitle.textContent = session.title || "AI Assistant";
+    activeChatTitle.textContent = session.title || "New chat";
     if (session.persona && personaSelect) {
-      personaSelect.value = session.persona in PERSONA_PROMPTS ? session.persona : "helpful";
+      personaSelect.value = session.persona;
     }
 
     renderMessages(messages);
 
-    // On mobile, close sidebar after selecting
     if (window.innerWidth <= 768) {
       sidebar.classList.remove("open");
     }
   } catch (e) {
-    showToast("Failed to load conversation history.");
+    showToast("Failed to load conversation.");
   }
 }
 
@@ -258,17 +232,15 @@ async function createNewChat() {
   if (isStreaming) return;
   stopSpeech();
   currentSessionId = null;
-  activeChatTitle.textContent = "New Conversation";
+  activeChatTitle.textContent = "New chat";
   chatFeed.innerHTML = "";
   if (welcomeScreen) {
     chatFeed.appendChild(welcomeScreen);
     welcomeScreen.style.display = "flex";
   }
 
-  // Deselect active session in sidebar
   document.querySelectorAll(".session-item").forEach(el => el.classList.remove("active"));
   messageInput.value = "";
-  charCounter.textContent = "0 / 4000";
   messageInput.focus();
 
   if (window.innerWidth <= 768) {
@@ -279,14 +251,13 @@ async function createNewChat() {
 async function deleteSession(sessionId) {
   try {
     const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
-    if (!res.ok) throw new Error("Failed to delete session");
-    showToast("Conversation deleted.");
+    if (!res.ok) throw new Error("Failed to delete");
     if (currentSessionId === sessionId) {
       createNewChat();
     }
     await loadSessions();
   } catch (e) {
-    showToast("Error deleting conversation.");
+    showToast("Error deleting session.");
   }
 }
 
@@ -309,10 +280,10 @@ async function clearCurrentChat() {
       chatFeed.appendChild(welcomeScreen);
       welcomeScreen.style.display = "flex";
     }
-    showToast("Chat history cleared.");
+    showToast("Chat cleared.");
     await loadSessions();
   } catch (e) {
-    showToast("Error clearing chat history.");
+    showToast("Error clearing chat.");
   }
 }
 
@@ -320,7 +291,7 @@ newChatBtn.addEventListener("click", createNewChat);
 clearChatBtn.addEventListener("click", clearCurrentChat);
 
 // -------------------------------------------------------------
-// Message Rendering & UI Helpers
+// Message Rendering
 // -------------------------------------------------------------
 function renderMessages(messages) {
   chatFeed.innerHTML = "";
@@ -334,11 +305,7 @@ function renderMessages(messages) {
 
   if (welcomeScreen) welcomeScreen.style.display = "none";
   messages.forEach(m => {
-    appendMessage(m.role, m.content, {
-      model: m.model,
-      provider: m.provider,
-      created_at: m.created_at
-    });
+    appendMessage(m.role, m.content, { model: m.model, provider: m.provider });
   });
   chatFeed.scrollTop = chatFeed.scrollHeight;
 }
@@ -346,100 +313,74 @@ function renderMessages(messages) {
 function appendMessage(role, rawContent, meta = {}, isError = false) {
   if (welcomeScreen) welcomeScreen.style.display = "none";
 
-  const row = document.createElement("div");
-  row.className = `message-row ${role === "user" ? "user-row" : "bot-row"}`;
-
-  const avatar = document.createElement("div");
-  avatar.className = `avatar ${role === "user" ? "user-avatar" : "bot-avatar"}`;
-  avatar.textContent = role === "user" ? "👤" : "🤖";
-
-  const wrapper = document.createElement("div");
-  wrapper.className = "message-wrapper";
-
-  const contentDiv = document.createElement("div");
-  contentDiv.className = "message-content";
-  if (isError) contentDiv.classList.add("error-card");
+  const entry = document.createElement("div");
+  entry.className = `message-entry ${role === "user" ? "user-entry" : "bot-entry"}`;
 
   if (role === "user") {
-    contentDiv.textContent = rawContent;
+    const bubble = document.createElement("div");
+    bubble.className = "user-bubble";
+    bubble.textContent = rawContent;
+    entry.appendChild(bubble);
   } else {
-    // Parse Markdown for assistant
-    renderMarkdownInto(contentDiv, rawContent);
-  }
-
-  wrapper.appendChild(contentDiv);
-
-  // Assistant Metadata & Action Toolbar
-  if (role === "assistant" && !isError) {
-    const metaBar = document.createElement("div");
-    metaBar.className = "message-meta";
-
-    const tagSpan = document.createElement("span");
-    const modelTag = meta.model || "AI";
-    tagSpan.textContent = `${modelTag}`;
-
-    const actions = document.createElement("div");
-    actions.className = "message-actions";
-
-    // Copy Response Button
-    const copyBtn = document.createElement("button");
-    copyBtn.className = "meta-action-btn";
-    copyBtn.title = "Copy reply to clipboard";
-    copyBtn.innerHTML = `
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    // Assistant Header indicator
+    const header = document.createElement("div");
+    header.className = "bot-header-indicator";
+    header.innerHTML = `
+      <svg class="bot-spark-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.4 14.4L2 12L9.4 9.4L12 2Z" fill="currentColor"/>
       </svg>
-      Copy
+      <span>${escapeHtml(meta.provider || meta.model || "ChatAI")}</span>
     `;
-    copyBtn.addEventListener("click", () => {
-      navigator.clipboard.writeText(rawContent);
-      showToast("Response copied to clipboard!");
-    });
+    entry.appendChild(header);
 
-    // Read Aloud (Text to Speech) Button
-    const speechBtn = document.createElement("button");
-    speechBtn.className = "meta-action-btn";
-    speechBtn.title = "Read aloud (Text to Speech)";
-    speechBtn.innerHTML = `
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-      </svg>
-      Speak
-    `;
-    speechBtn.addEventListener("click", () => {
-      toggleSpeech(rawContent, speechBtn);
-    });
+    // Assistant Markdown Body
+    const body = document.createElement("div");
+    body.className = "bot-body";
+    if (isError) body.style.color = "var(--error)";
+    renderMarkdownInto(body, rawContent);
+    entry.appendChild(body);
 
-    actions.appendChild(copyBtn);
-    actions.appendChild(speechBtn);
+    // Subtle Actions (Copy & Speak)
+    if (!isError) {
+      const actionsRow = document.createElement("div");
+      actionsRow.className = "bot-actions-row";
 
-    metaBar.appendChild(tagSpan);
-    metaBar.appendChild(actions);
-    wrapper.appendChild(metaBar);
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "action-pill-btn";
+      copyBtn.title = "Copy";
+      copyBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        Copy
+      `;
+      copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(rawContent);
+        showToast("Copied to clipboard");
+      });
+
+      const speakBtn = document.createElement("button");
+      speakBtn.className = "action-pill-btn";
+      speakBtn.title = "Read aloud";
+      speakBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        Speak
+      `;
+      speakBtn.addEventListener("click", () => toggleSpeech(rawContent, speakBtn));
+
+      actionsRow.appendChild(copyBtn);
+      actionsRow.appendChild(speakBtn);
+      entry.appendChild(actionsRow);
+    }
   }
 
-  // Error Retry Button
-  if (isError) {
-    const retryBtn = document.createElement("button");
-    retryBtn.className = "retry-btn";
-    retryBtn.innerHTML = `🔄 Try Again`;
-    retryBtn.addEventListener("click", () => {
-      if (meta.lastUserPrompt) {
-        messageInput.value = meta.lastUserPrompt;
-        chatForm.dispatchEvent(new Event("submit"));
-      }
-    });
-    wrapper.appendChild(retryBtn);
-  }
-
-  row.appendChild(avatar);
-  row.appendChild(wrapper);
-  chatFeed.appendChild(row);
-
+  chatFeed.appendChild(entry);
   chatFeed.scrollTop = chatFeed.scrollHeight;
-  return row;
+  return entry;
 }
 
 function renderMarkdownInto(container, markdownText) {
@@ -449,49 +390,48 @@ function renderMarkdownInto(container, markdownText) {
     container.textContent = markdownText;
   }
 
-  // Post-process Code Blocks to inject Header & "Copy Code" button
+  // Format Code Blocks
   container.querySelectorAll("pre").forEach(pre => {
-    // Avoid double-wrapping
-    if (pre.parentElement.classList.contains("code-block-wrapper")) return;
+    if (pre.parentElement.classList.contains("code-wrapper")) return;
 
     const code = pre.querySelector("code");
     const langMatch = code ? code.className.match(/language-(\w+)/) : null;
     const lang = langMatch ? langMatch[1] : "code";
 
     const wrapper = document.createElement("div");
-    wrapper.className = "code-block-wrapper";
+    wrapper.className = "code-wrapper";
 
-    const header = document.createElement("div");
-    header.className = "code-header";
-    header.innerHTML = `
+    const topbar = document.createElement("div");
+    topbar.className = "code-topbar";
+    topbar.innerHTML = `
       <span>${lang}</span>
-      <button class="copy-code-btn" title="Copy code snippet">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <button class="copy-snippet-btn" title="Copy code">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
         </svg>
-        Copy Code
+        Copy
       </button>
     `;
 
-    const copyBtn = header.querySelector(".copy-code-btn");
+    const copyBtn = topbar.querySelector(".copy-snippet-btn");
     copyBtn.addEventListener("click", () => {
-      const textToCopy = code ? code.innerText : pre.innerText;
-      navigator.clipboard.writeText(textToCopy);
-      copyBtn.innerHTML = `✓ Copied!`;
+      const text = code ? code.innerText : pre.innerText;
+      navigator.clipboard.writeText(text);
+      copyBtn.innerHTML = `✓ Copied`;
       setTimeout(() => {
         copyBtn.innerHTML = `
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
-          Copy Code
+          Copy
         `;
-      }, 2000);
+      }, 1800);
     });
 
     pre.parentNode.insertBefore(wrapper, pre);
-    wrapper.appendChild(header);
+    wrapper.appendChild(topbar);
     wrapper.appendChild(pre);
 
     if (typeof hljs !== "undefined" && code) {
@@ -501,61 +441,59 @@ function renderMarkdownInto(container, markdownText) {
 }
 
 function appendStreamingPlaceholder() {
-  const row = document.createElement("div");
-  row.className = "message-row bot-row streaming-row";
+  const entry = document.createElement("div");
+  entry.className = "message-entry bot-entry streaming-entry";
 
-  const avatar = document.createElement("div");
-  avatar.className = "avatar bot-avatar";
-  avatar.textContent = "🤖";
+  const header = document.createElement("div");
+  header.className = "bot-header-indicator";
+  header.innerHTML = `
+    <svg class="bot-spark-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.4 14.4L2 12L9.4 9.4L12 2Z" fill="currentColor"/>
+    </svg>
+    <span>ChatAI</span>
+  `;
 
-  const wrapper = document.createElement("div");
-  wrapper.className = "message-wrapper";
+  const body = document.createElement("div");
+  body.className = "bot-body";
+  body.innerHTML = `<span class="loading-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>`;
 
-  const contentDiv = document.createElement("div");
-  contentDiv.className = "message-content";
-  contentDiv.innerHTML = `<span class="dot"></span><span class="dot"></span><span class="dot"></span>`;
-
-  wrapper.appendChild(contentDiv);
-  row.appendChild(avatar);
-  row.appendChild(wrapper);
-  chatFeed.appendChild(row);
-
+  entry.appendChild(header);
+  entry.appendChild(body);
+  chatFeed.appendChild(entry);
   chatFeed.scrollTop = chatFeed.scrollHeight;
-  return { row, contentDiv, wrapper };
+
+  return { entry, body };
 }
 
 // -------------------------------------------------------------
-// Chat Submission with Server-Sent Events (SSE) Streaming
+// Chat Submission via SSE Streaming
 // -------------------------------------------------------------
 chatForm.addEventListener("submit", async function (e) {
   e.preventDefault();
   const text = messageInput.value.trim();
   if (!text || isStreaming) return;
 
-  // Append user message to UI
   appendMessage("user", text);
 
-  // Clear Input & reset height
   messageInput.value = "";
   messageInput.style.height = "auto";
-  charCounter.textContent = "0 / 4000";
   sendBtn.disabled = true;
   isStreaming = true;
-  streamIndicator.classList.remove("hidden");
 
-  // Create streaming placeholder in feed
   const placeholder = appendStreamingPlaceholder();
 
   const selectedPersona = personaSelect ? personaSelect.value : "helpful";
   const customPrompt = selectedPersona === "custom" && customPromptInput
     ? customPromptInput.value.trim()
     : "";
+  const selectedProvider = providerSelect ? providerSelect.value : "auto";
 
   const payload = {
     message: text,
     session_id: currentSessionId || "",
     persona: selectedPersona,
-    custom_prompt: customPrompt
+    custom_prompt: customPrompt,
+    provider: selectedProvider
   };
 
   let accumulatedText = "";
@@ -572,12 +510,11 @@ chatForm.addEventListener("submit", async function (e) {
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       const msg = errData.details || errData.error || "Service unavailable.";
-      placeholder.row.remove();
-      appendMessage("bot", `⚠️ **Error (${response.status}):** ${msg}`, { lastUserPrompt: text }, true);
+      placeholder.entry.remove();
+      appendMessage("assistant", `⚠️ **Error (${response.status}):** ${msg}`, {}, true);
       return;
     }
 
-    // Process SSE stream chunks
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -588,7 +525,7 @@ chatForm.addEventListener("submit", async function (e) {
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n\n");
-      buffer = lines.pop(); // keep trailing incomplete chunk
+      buffer = lines.pop();
 
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
@@ -600,8 +537,7 @@ chatForm.addEventListener("submit", async function (e) {
 
           if (parsed.type === "session_meta" && parsed.session_id) {
             currentSessionId = parsed.session_id;
-            // Update sidebar session title from first message
-            if (!activeChatTitle.textContent || activeChatTitle.textContent === "New Conversation") {
+            if (!activeChatTitle.textContent || activeChatTitle.textContent === "New chat") {
               const snippet = text.split(" ").slice(0, 5).join(" ");
               activeChatTitle.textContent = snippet;
             }
@@ -609,8 +545,7 @@ chatForm.addEventListener("submit", async function (e) {
 
           if (parsed.chunk) {
             accumulatedText += parsed.chunk;
-            // Render partial markdown with active typing cursor
-            placeholder.contentDiv.innerHTML = marked.parse(accumulatedText) + '<span class="typing-cursor"></span>';
+            placeholder.body.innerHTML = marked.parse(accumulatedText) + '<span class="typing-cursor"></span>';
             chatFeed.scrollTop = chatFeed.scrollHeight;
           }
 
@@ -622,48 +557,35 @@ chatForm.addEventListener("submit", async function (e) {
           if (parsed.error) {
             throw new Error(parsed.error);
           }
-        } catch (jsonErr) {
-          console.warn("SSE JSON Parse error:", jsonErr);
-        }
+        } catch (jsonErr) {}
       }
     }
 
-    // Finalize assistant message with complete Markdown & actions
-    placeholder.row.remove();
-    appendMessage("bot", accumulatedText, {
+    placeholder.entry.remove();
+    appendMessage("assistant", accumulatedText, {
       model: finalModel,
       provider: finalProvider
     });
 
-    // Refresh sessions list
     await loadSessions();
 
   } catch (err) {
-    placeholder.row.remove();
-    appendMessage(
-      "bot",
-      `⚠️ **Connection Error:** ${err.message || "Failed to stream AI response."}`,
-      { lastUserPrompt: text },
-      true
-    );
+    placeholder.entry.remove();
+    appendMessage("assistant", `⚠️ **Connection Error:** ${err.message}`, {}, true);
   } finally {
     isStreaming = false;
-    sendBtn.disabled = false;
-    streamIndicator.classList.add("hidden");
+    updateSendButtonState();
     messageInput.focus();
   }
 });
 
 // -------------------------------------------------------------
-// Voice Input (Speech-to-Text via Web Speech API)
+// Voice Input (Web Speech API STT)
 // -------------------------------------------------------------
 function initVoiceInput() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    if (voiceBtn) {
-      voiceBtn.title = "Voice input is not supported in this browser";
-      voiceBtn.style.opacity = "0.5";
-    }
+    if (voiceBtn) voiceBtn.style.display = "none";
     return;
   }
 
@@ -684,18 +606,13 @@ function initVoiceInput() {
       transcript += event.results[i][0].transcript;
     }
     messageInput.value = transcript;
-    charCounter.textContent = `${transcript.length} / 4000`;
+    messageInput.style.height = "auto";
+    messageInput.style.height = Math.min(messageInput.scrollHeight, 160) + "px";
+    updateSendButtonState();
   };
 
-  recognition.onerror = (event) => {
-    console.error("Speech Recognition Error:", event.error);
-    stopRecording();
-    showToast(`Voice Error: ${event.error}`);
-  };
-
-  recognition.onend = () => {
-    stopRecording();
-  };
+  recognition.onerror = () => stopRecording();
+  recognition.onend = () => stopRecording();
 
   function stopRecording() {
     isRecording = false;
@@ -719,15 +636,14 @@ function initVoiceInput() {
 }
 
 // -------------------------------------------------------------
-// Voice Output (Text-to-Speech via Web Speech API)
+// Voice Output (Speech Synthesis TTS)
 // -------------------------------------------------------------
 function toggleSpeech(text, btnElement) {
   if (!window.speechSynthesis) {
-    showToast("Text-to-speech not supported in this browser.");
+    showToast("Text-to-speech not supported");
     return;
   }
 
-  // If already speaking from this button, stop
   if (window.speechSynthesis.speaking && activeSpeakerBtn === btnElement) {
     stopSpeech();
     return;
@@ -735,46 +651,29 @@ function toggleSpeech(text, btnElement) {
 
   stopSpeech();
 
-  // Strip markdown formatting for cleaner speech
   const cleanText = text
-    .replace(/```[\s\S]*?```/g, "Code block omitted.")
+    .replace(/```[\s\S]*?```/g, "")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/[*_~#>]/g, "")
     .trim();
 
   currentSpeechUtterance = new SpeechSynthesisUtterance(cleanText);
-  currentSpeechUtterance.rate = 1.0;
-  currentSpeechUtterance.pitch = 1.0;
-
   activeSpeakerBtn = btnElement;
   btnElement.classList.add("active-speaker");
-  btnElement.innerHTML = `
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="6" y="4" width="4" height="16"></rect>
-      <rect x="14" y="4" width="4" height="16"></rect>
-    </svg>
-    Pause
-  `;
+  btnElement.innerHTML = `Pause`;
 
-  currentSpeechUtterance.onend = () => {
-    stopSpeech();
-  };
-
-  currentSpeechUtterance.onerror = () => {
-    stopSpeech();
-  };
+  currentSpeechUtterance.onend = () => stopSpeech();
+  currentSpeechUtterance.onerror = () => stopSpeech();
 
   window.speechSynthesis.speak(currentSpeechUtterance);
 }
 
 function stopSpeech() {
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
   if (activeSpeakerBtn) {
     activeSpeakerBtn.classList.remove("active-speaker");
     activeSpeakerBtn.innerHTML = `
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
         <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
       </svg>
@@ -785,7 +684,7 @@ function stopSpeech() {
 }
 
 // -------------------------------------------------------------
-// Export Conversation
+// Export Handlers
 // -------------------------------------------------------------
 if (exportBtn && exportMenu) {
   exportBtn.addEventListener("click", (e) => {
@@ -793,48 +692,80 @@ if (exportBtn && exportMenu) {
     exportMenu.classList.toggle("hidden");
   });
 
-  document.addEventListener("click", () => {
-    exportMenu.classList.add("hidden");
-  });
+  document.addEventListener("click", () => exportMenu.classList.add("hidden"));
 
   exportMdBtn.addEventListener("click", () => {
     if (!currentSessionId) {
-      showToast("Start a conversation first before exporting.");
+      showToast("Start a conversation first");
       return;
     }
     window.location.href = `/api/export/${currentSessionId}?format=markdown`;
-    showToast("Exporting Markdown transcript...");
   });
 
   exportJsonBtn.addEventListener("click", () => {
     if (!currentSessionId) {
-      showToast("Start a conversation first before exporting.");
+      showToast("Start a conversation first");
       return;
     }
     window.location.href = `/api/export/${currentSessionId}?format=json`;
-    showToast("Exporting JSON transcript...");
   });
 }
 
 // -------------------------------------------------------------
-// Input Utilities & Event Handlers
+// Input Handlers & Composer Interactions
 // -------------------------------------------------------------
+function updateSendButtonState() {
+  if (isStreaming) {
+    sendBtn.disabled = true;
+    sendBtn.classList.remove("active");
+    return;
+  }
+  const hasText = messageInput.value.trim().length > 0;
+  sendBtn.disabled = !hasText;
+  sendBtn.classList.toggle("active", hasText);
+}
+
+const composerBox = document.getElementById("composerBox");
+if (composerBox) {
+  composerBox.addEventListener("click", (e) => {
+    if (!e.target.closest("#voiceBtn") && !e.target.closest("#sendBtn")) {
+      messageInput.focus();
+    }
+  });
+}
+
+if (sendBtn) {
+  sendBtn.addEventListener("click", function (e) {
+    if (!messageInput.value.trim() && !isStreaming) {
+      e.preventDefault();
+      messageInput.focus();
+    }
+  });
+}
+
 messageInput.addEventListener("input", function () {
   this.style.height = "auto";
-  this.style.height = Math.min(this.scrollHeight, 180) + "px";
-  charCounter.textContent = `${this.value.length} / 4000`;
+  this.style.height = Math.min(this.scrollHeight, 160) + "px";
+  updateSendButtonState();
 });
 
 messageInput.addEventListener("keydown", function (e) {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
-    if (messageInput.value.trim() && !sendBtn.disabled) {
+    if (messageInput.value.trim() && !isStreaming) {
       chatForm.dispatchEvent(new Event("submit"));
     }
   }
 });
 
-// Persona Change
+// Keyboard shortcut: Ctrl+K or Cmd+K for new chat
+document.addEventListener("keydown", function (e) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    createNewChat();
+  }
+});
+
 if (personaSelect) {
   personaSelect.addEventListener("change", function () {
     if (this.value === "custom") {
@@ -846,21 +777,22 @@ if (personaSelect) {
   });
 }
 
-// Sidebar Mobile Toggle
 if (toggleSidebarBtn) {
   toggleSidebarBtn.addEventListener("click", () => {
-    sidebar.classList.toggle("open");
+    if (window.innerWidth <= 768) {
+      sidebar.classList.toggle("open");
+    } else {
+      sidebar.classList.toggle("collapsed");
+    }
   });
 }
 
-// Quick Prompt Chips
 document.addEventListener("click", function (e) {
-  const chip = e.target.closest(".chip");
-  if (chip) {
-    const prompt = chip.getAttribute("data-prompt");
+  const card = e.target.closest(".prompt-card");
+  if (card) {
+    const prompt = card.getAttribute("data-prompt");
     if (prompt) {
       messageInput.value = prompt;
-      charCounter.textContent = `${prompt.length} / 4000`;
       chatForm.dispatchEvent(new Event("submit"));
     }
   }
@@ -871,11 +803,12 @@ function escapeHtml(str) {
 }
 
 // -------------------------------------------------------------
-// App Initialization
+// Initialization
 // -------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
   initTheme();
   initVoiceInput();
+  updateSendButtonState();
   await checkBackendStatus();
   await loadSessions();
   messageInput.focus();

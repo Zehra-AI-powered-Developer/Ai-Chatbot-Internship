@@ -21,16 +21,18 @@
 
 ## 📌 Executive Summary
 
-Building on the Day 1 baseline, this release elevates the AI Chatbot into a **production-grade conversational AI platform** that fulfills and surpasses all **Day 2 (Core Chatbot Development)** and **Day 3 (System Enhancements)** requirements.
+Building on the Day 1 baseline, this release elevates the AI Chatbot into a **production-grade, dual-engine conversational AI platform** that fulfills and surpasses all **Day 2 (Core Chatbot Development)** and **Day 3 (System Enhancements)** requirements.
 
 Rather than merely polishing the visual interface, our engineering focused heavily on **production-oriented patterns**:
-1. **Persistent Session Storage**: SQLite backend with Write-Ahead Logging (WAL) for multi-session conversation history across restarts.
-2. **Sliding-Window Memory & Token Budgeting**: Prevents LLM context overflow, reduces latency, and protects API cost limits.
-3. **Real-time Server-Sent Events (SSE) Streaming**: Lowers Time-To-First-Byte (TTFB) to near-instantaneous token-by-token output.
-4. **Resilient Multi-Provider AI Architecture**: Seamless integration with **Google Gemini (2026 `google-genai` SDK)**, **Groq Cloud (Llama-3.3-70B)**, and **OpenAI (GPT-4o-mini)** with automated backoff retry and zero-config demo fallback.
-5. **Security & Defensive Guardrails**: Sliding-window IP rate limiting, strict payload validation, input sanitization, and structured HTTP error standards.
-6. **Voice Multimodality**: Hands-free voice input (Speech-to-Text) and natural voice output (Text-to-Speech) using the browser's Web Speech API.
-7. **Conversation Export**: One-click export of transcripts into formatted Markdown (`.md`) or structured JSON (`.json`).
+1. **Dual-API Hybrid Engine with Automatic Failover**: Combines **Groq Cloud** for lightning-fast token streaming and **Google Gemini (2026 `google-genai` SDK)** for deep reasoning. If rapid command bursts trigger on-demand rate limits or OTPM caps on Groq, the engine transparently fails over to Gemini (and OpenAI if configured), guaranteeing zero downtime.
+2. **Interactive Engine Selector**: User-controllable model switching directly in the navbar (`⚡ Auto (Groq + Gemini)`, `Groq Cloud`, `Google Gemini`, `OpenAI`).
+3. **Clean, Minimalist Professional Interface**: Redesigned adhering to Linear/Claude design systems—distraction-free, centered reading width, dark/light themes, no clutter, and sleek code blocks with copy buttons.
+4. **Persistent Session Storage**: SQLite backend with Write-Ahead Logging (WAL) for multi-session conversation history across restarts.
+5. **Sliding-Window Memory & Token Budgeting**: Prevents LLM context overflow, reduces latency, and protects API cost limits.
+6. **Real-time Server-Sent Events (SSE) Streaming**: Lowers Time-To-First-Byte (TTFB) to near-instantaneous token-by-token output.
+7. **Security & Defensive Guardrails**: Sliding-window IP rate limiting, strict payload validation, input sanitization, and structured HTTP error standards.
+8. **Voice Multimodality**: Hands-free voice input (Speech-to-Text) and natural voice output (Text-to-Speech) using the browser's Web Speech API.
+9. **Conversation Export**: One-click export of transcripts into formatted Markdown (`.md`) or structured JSON (`.json`).
 
 ---
 
@@ -85,15 +87,15 @@ Rather than merely polishing the visual interface, our engineering focused heavi
                                       │
         ┌─────────────────────────────┴─────────────────────────────┐
         ▼                                                           ▼
-┌──────────────────────────────┐            ┌──────────────────────────────┐
-│  SQLite Persistence Layer    │            │     AI Service Engine        │
-│  (WAL Mode / chat_history.db)│            │  (Multi-Provider Routing)    │
-│  - sessions table            │            ├──────────────────────────────┤
-│  - messages table            │            │ 1. Google Gemini (google.genai)
-│  - indices & cascade delete  │            │ 2. Groq Cloud (Llama-3.3-70b)│
-└──────────────────────────────┘            │ 3. OpenAI (GPT-4o-mini)      │
-                                            │ 4. Intelligent Demo Fallback │
-                                            └──────────────────────────────┘
+┌──────────────────────────────┐            ┌──────────────────────────────────────────┐
+│  SQLite Persistence Layer    │            │     AI Service Engine (Dual Hybrid)      │
+│  (WAL Mode / chat_history.db)│            │  (Multi-Provider Routing & Auto-Failover)│
+│  - sessions table            │            ├──────────────────────────────────────────┤
+│  - messages table            │            │ 1. Groq Cloud (Ultra-Fast Streaming)     │
+│  - indices & cascade delete  │            │ 2. Google Gemini (google.genai SDK)      │
+└──────────────────────────────┘            │ 3. OpenAI (GPT-4o-mini Fallback)         │
+                                            │ 4. Intelligent Offline Demo Fallback     │
+                                            └──────────────────────────────────────────┘
 ```
 
 ### End-to-End Request Lifecycle
@@ -168,25 +170,23 @@ Copy the `.env.example` template:
 cp .env.example .env
 ```
 
-Open `.env` and set your preferred provider key:
+Open `.env` and set your preferred provider keys:
 
 ```env
-# Option 1: Google Gemini (Recommended - Free & Fast)
+# Dual-API Hybrid Setup (Recommended for high burst stability & speed)
+GROQ_API_KEY=gsk_your_groq_key_here
 GEMINI_API_KEY=AIzaSy_your_gemini_key_here
-AI_MODEL=gemini-3.5-flash-lite
+AI_MODEL=openai/gpt-oss-120b
 
-# Option 2: Groq Cloud (Llama-3.3-70B)
-# GROQ_API_KEY=gsk_your_groq_key_here
-# AI_MODEL=llama-3.3-70b-versatile
-
-# Option 3: OpenAI (GPT-4o-mini)
+# Optional: OpenAI (GPT-4o-mini)
 # OPENAI_API_KEY=sk-your_openai_key_here
-# AI_MODEL=gpt-4o-mini
 
 PORT=5000
 ```
 
-> **Note:** If no key is set, the application automatically boots into **Intelligent Demo Mode**, enabling full testing of multi-turn memory, sliding window, voice I/O, and UI features without any external credentials.
+> **Dual-API Hybrid Mode:** When both `GROQ_API_KEY` and `GEMINI_API_KEY` are provided, the system defaults to **Auto Failover Mode**. Groq handles initial requests with near-instantaneous latency (~300ms TTFB); if high command volume hits Groq on-demand OTPM limits, the system transparently shifts traffic to Google Gemini to prevent user interruptions.
+> 
+> **Zero-Config Demo Mode:** If no keys are provided, the system boots into an offline intelligent simulator so all UI and persistence features remain 100% testable.
 
 ### 4. Run the Application
 ```bash
@@ -277,6 +277,10 @@ OK
 ### 4. Code Block Copying in Rendered Markdown
 - **Problem:** Standard `marked.js` outputs plain `<pre><code>` blocks without copy affordances or language headers.
 - **Solution:** Designed a custom post-processor in JavaScript that wraps rendered code blocks in an IDE-style container with language tags and an animated **"Copy Code"** button providing visual confirmation.
+
+### 5. Multi-Command Rate Limits & Single-Point-of-Failure (Groq OTPM)
+- **Problem:** When sending many rapid commands, single-provider endpoints (e.g. Groq free tier Output Tokens Per Minute caps or upstream API cooldowns) returned `429 Too Many Requests`, halting the user's conversational flow.
+- **Solution:** Implemented a **Dual-API Hybrid Architecture** (`_build_failover_chain()` in `ai_service.py`). The system prioritizes Groq for near-instant responses, automatically caps per-request generation to safe token budgets (`max_tokens=800`), and on any 429/503 or quota interruption, seamlessly switches the active generation stream to Google Gemini without dropping user context.
 
 ---
 

@@ -68,23 +68,29 @@ def serve_static(filename):
 
 @app.route("/api/status", methods=["GET"])
 def get_status():
-    """Return backend health, active AI provider, model, and system capabilities."""
+    """Return backend health, active AI providers, model, and system capabilities."""
     load_dotenv(dotenv_path=ENV_PATH, override=True)
-    provider_type, key, model = get_active_provider_config()
+    from ai_service import get_available_providers
+    available = get_available_providers()
+    provider_names = [p["name"] for p in available]
 
-    provider_names = {
-        "gemini": "Google Gemini",
-        "groq": "Groq Cloud (Llama-3)",
-        "openai": "OpenAI",
-        "demo": "Demo Assistant (Zero-Config)"
-    }
+    if len(provider_names) >= 2:
+        display_provider = "Groq + Gemini (Dual Hybrid)"
+    elif len(provider_names) == 1:
+        display_provider = provider_names[0]
+    else:
+        display_provider = "Demo Mode"
+
+    top_model = available[0]["default_model"] if available else "demo-v1"
 
     return jsonify({
         "status": "online",
-        "provider": provider_names.get(provider_type, "Unknown"),
-        "model": model,
-        "is_live_key_configured": provider_type != "demo",
+        "provider": display_provider,
+        "active_providers": provider_names,
+        "model": top_model,
+        "is_live_key_configured": len(available) > 0,
         "features": {
+            "dual_api_failover": True,
             "streaming_sse": True,
             "sqlite_persistence": True,
             "sliding_window_memory": True,
@@ -249,11 +255,13 @@ def chat_sync():
 
     # 5. Call AI Service
     try:
+        provider_mode = cleaned.get("provider", "auto")
         response_data = AIService.generate_chat_reply(
             history=context_turns,
             message=user_message,
             persona=persona,
-            custom_prompt=custom_prompt
+            custom_prompt=custom_prompt,
+            preferred_provider=provider_mode
         )
 
         reply = response_data["reply"]
@@ -336,11 +344,13 @@ def chat_stream():
         final_model = ""
 
         try:
+            provider_mode = cleaned.get("provider", "auto")
             for sse_chunk in AIService.generate_chat_stream(
                 history=context_turns,
                 message=user_message,
                 persona=persona,
-                custom_prompt=custom_prompt
+                custom_prompt=custom_prompt,
+                preferred_provider=provider_mode
             ):
                 # Inspect final payload to extract complete reply for persistence
                 if sse_chunk.startswith("data: "):

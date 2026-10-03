@@ -82,6 +82,7 @@ def validate_chat_request(data: dict) -> tuple[bool, str, dict]:
         "session_id": str(data.get("session_id", "")).strip(),
         "persona": str(data.get("persona", "helpful")).strip(),
         "custom_prompt": str(data.get("custom_prompt", "")).strip(),
+        "provider": str(data.get("provider", "auto")).strip(),
         "history": data.get("history", [])
     }
 
